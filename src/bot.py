@@ -1,19 +1,27 @@
 from playwright.sync_api import sync_playwright
 import time
 import random
-import requests
-import socketio
 from config import EMAIL, PASSWORD
+from pathlib import Path
+import re
 
 class HappySlapBot:
     def __init__(self):
         self.browser = None
         self.page = None
-        self.socket = None
         
     def start(self):
         playwright = sync_playwright().start()
-        self.browser = playwright.chromium.launch(headless=False)
+        
+        # Launch Chrome with minimal settings
+        self.browser = playwright.chromium.launch(
+            channel='chrome',  # Use Chrome instead of Chromium
+            headless=False,
+            args=[
+                '--disable-web-security'  # Just this one flag to help with WebSocket
+            ]
+        )
+        
         self.page = self.browser.new_page()
         
         # Login first
@@ -55,135 +63,140 @@ class HappySlapBot:
             print("❌ Login failed!")
             raise e
 
-    def fetch_trivia_games(self):
-        """Fetch trivia games using the API directly"""
-        try:
-            print(f"🔍 Using access token: {self.access_token[:20]}...")
-            
-            response = requests.get(
-                "https://api.happyslap.tv/api/game/public",  # Fixed URL
-                params={
-                    "game": "trivia",
-                    "menu": "official",
-                    "search": ""  # Added this from the network request
-                },
-                headers={
-                    "Authorization": f"Bearer {self.access_token}",
-                    "Accept": "application/json",
-                    "Origin": "https://happyslap.tv",
-                    "Referer": "https://happyslap.tv/host/discover"
-                }
-            )
-            print(f"📡 API Status Code: {response.status_code}")
-            
-            if response.status_code != 200:
-                print(f"❌ API Error: {response.text}")
-                return []
-                
-            data = response.json()
-            print(f"📦 Found {len(data['games'])} games")
-            return data["games"]
-            
-        except Exception as e:
-            print(f"❌ API Error: {str(e)}")
-            if 'response' in locals():
-                print(f"Response content: {response.text}")
-            return []
-        
-    def connect_socket(self):
-        """Connect to HappySlap socket server"""
-        print("🔌 Connecting to socket...")
-        self.socket = socketio.Client(logger=True, engineio_logger=True)
-        
-        @self.socket.event
-        def connect():
-            print("✅ Socket connected!")
-            
-        @self.socket.event
-        def disconnect():
-            print("❌ Socket disconnected!")
-            
-        @self.socket.event
-        def connect_error(data):
-            print(f"❌ Socket connection error: {data}")
-        
-        try:
-            # Connect with auth token
-            self.socket.connect(
-                'https://api.happyslap.tv',
-                headers={
-                    'Authorization': f'Bearer {self.access_token}',
-                    'Origin': 'https://happyslap.tv',
-                    'Referer': 'https://happyslap.tv/'
-                },
-                transports=['polling', 'websocket'],
-                wait=True
-            )
-        except Exception as e:
-            print(f"❌ Socket connection failed: {str(e)}")
-            raise e
-
-    def create_party(self, game):
-        """Create a party using socket connection"""
-        try:
-            print(f"🎲 Creating party for game type: {game['game']}")
-            # Use callback to wait for response
-            future = self.socket.call('createParty', {'gameType': game['game']})
-            print(f"✅ Party created: {future}")
-            return future
-        except Exception as e:
-            print(f"❌ Failed to create party: {str(e)}")
-            raise e
-        
-    def select_and_host_trivia_game(self):
-        """Find and host a random trivia game"""
-        print("🎲 Finding a trivia game...")
-        
-        # Get trivia games from API
-        games = self.fetch_trivia_games()
-        if not games:
-            raise Exception("No trivia games found")
-            
-        # Select random game
-        game = random.choice(games)
-        print(f"🎮 Selected: {game['title']}")
-        
-        # Connect socket if needed
-        if not self.socket or not self.socket.connected:
-            self.connect_socket()
-            
-        # Clear localStorage items
+    def inject_countdown_overlay(self):
+        """Helper to inject the countdown overlay"""
         self.page.evaluate("""() => {
-            if (localStorage.getItem("base") !== null) {
-                localStorage.removeItem("base");
-            }
-            if (localStorage.getItem("trivia") !== null) {
-                localStorage.removeItem("trivia");
+            if (!document.getElementById('countdown-overlay')) {
+                const overlay = document.createElement('div');
+                overlay.id = 'countdown-overlay';
+                overlay.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: rgba(0, 0, 0, 0.8);
+                    color: white;
+                    padding: 15px;
+                    border-radius: 10px;
+                    font-size: 24px;
+                    z-index: 9999;
+                `;
+                document.body.appendChild(overlay);
             }
         }""")
+
+    def update_countdown(self, text):
+        """Helper to update countdown text"""
+        self.page.evaluate(f"""text => {{
+            document.getElementById('countdown-overlay').innerText = text;
+        }}""", text)
+
+    def select_and_host_trivia_game(self):
+        """Find and host a random trivia game using the UI"""
+        print("🎲 Finding a trivia game...")
         
-        # Create party via socket
-        print("🎮 Creating party...")
-        party_data = self.create_party(game)
-        party_id = party_data['partyId']
-        
-        # Navigate directly to game URL
-        game_url = f"https://happyslap.tv/{game['game']}/host/{party_id}/{game['id']}"
-        print(f"🎯 Navigating to {game_url}")
-        self.page.goto(game_url)
-        
-        # Store current game URL
-        self.current_game_url = self.page.url
-        print(f"🎮 Hosting game at: {self.current_game_url}")
-        
-        # Make sure we're fully loaded
+        # Navigate to discover page
+        self.page.goto("https://happyslap.tv/host/discover")
         self.page.wait_for_load_state('networkidle')
+        
+        # Find and fill the search bar
+        search_input = self.page.wait_for_selector('input[class*="font-roboto"][class*="rounded-lg"]')
+        print("🔍 Found search input, filling with 'Trivia'...")
+        search_input.fill("Trivia")
+        print("🔍 Searching for Trivia games...")
+        
+        self.page.wait_for_timeout(1500)  # Wait for debounce
+        
+        # Wait for and select game card
+        self.page.wait_for_selector('[class*="grid-cols-3"]')
+        game_cards = self.page.query_selector_all('[class*="grid-cols-3"] > div')
+        if not game_cards:
+            raise Exception("No trivia games found")
+            
+        random.choice(game_cards).click()
+        
+        # Wait for and click Host Game
+        host_button = self.page.wait_for_selector('button:has-text("Host Game")')
+        host_button.click()
+        
+        # Wait for lobby and get join code
+        self.page.wait_for_url(re.compile(r"https://happyslap.tv/trivia/host/[A-Z0-9]{5}/.*"))
+        
+        # Wait for lobby to fully load and player list to reset
+        self.page.wait_for_load_state('networkidle')
+        time.sleep(2)  # Extra wait to ensure player list is fresh
+        
+        # Get join code from URL first
+        url_parts = self.page.url.split('/')
+        join_code_index = url_parts.index('host') + 1
+        if join_code_index < len(url_parts):
+            self.current_join_code = url_parts[join_code_index]
+            print(f"🎫 Join Code: {self.current_join_code}")
+        else:
+            # Fallback to looking for code in the page
+            join_code_element = self.page.query_selector('h1.text-hs-green.font-londrina')
+            if join_code_element:
+                self.current_join_code = join_code_element.inner_text()
+                print(f"🎫 Join Code: {self.current_join_code}")
+        
+        # Inject overlay if needed
+        self.inject_countdown_overlay()
+        
+        # Make sure player list is empty before starting lobby loop
+        initial_player_count = len(self.page.query_selector_all('[class*="grid-cols-4"] > div'))
+        if initial_player_count > 0:
+            print("⚠️ Waiting for player list to reset...")
+            while len(self.page.query_selector_all('[class*="grid-cols-4"] > div')) > 0:
+                time.sleep(0.5)
+        
+        # Reset lobby state
+        lobby_start_time = time.time()
+        player_joined = False
+        print("👥 Lobby ready - waiting for players...")
+        
+        while True:
+            # Check for game end
+            restart_button = self.page.query_selector('text="Restart Game"')
+            if restart_button:
+                print("🏆 Game ended - showing scores...")
+                # Countdown before finding new game
+                for i in range(20, 0, -1):
+                    self.update_countdown(f'Finding new game in: {i}s')
+                    time.sleep(1)
+                return self.select_and_host_trivia_game()  # Start fresh game
+            
+            # Check empty lobby timeout
+            player_count = len(self.page.query_selector_all('[class*="grid-cols-4"] > div'))
+            if time.time() - lobby_start_time > 600 and player_count == 0:  # 10 minutes empty
+                print("⏰ Lobby timeout - no players for 10 minutes")
+                # Countdown before finding new game
+                for i in range(10, 0, -1):
+                    self.update_countdown(f'Empty lobby - Finding new game in: {i}s')
+                    time.sleep(1)
+                return self.select_and_host_trivia_game()  # Start fresh game
+            
+            # Handle player joining
+            if player_count > 0 and not player_joined:
+                print(f"👥 First player joined! Starting countdown...")
+                player_joined = True
+                
+                # Countdown to game start
+                for i in range(50, 0, -1):
+                    self.update_countdown(f'Starting in: {i}s')
+                    time.sleep(1)
+                
+                # Start the game
+                play_button = self.page.query_selector('[class*="generic-button"][class*="bg-hs-green"]')
+                if play_button:
+                    self.update_countdown('Game in progress...')
+                    play_button.click()
+            
+            time.sleep(1)
 
     def announce_game(self):
-        if hasattr(self, 'current_game_url'):
+        if hasattr(self, 'current_join_code'):
             print(f"""
 📢 New game started!
-🎮 Join us at: {self.current_game_url}
+🎮 Join code: {self.current_join_code}
 💫 HappySlap.tv - The best place for party games!
             """)
 

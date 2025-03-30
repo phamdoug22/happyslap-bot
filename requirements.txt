@@ -1,4 +1,6 @@
-python-dotenv
+playwright
 requests
-python-socketio
+python-socketio[client]
+python-dotenv
+websocket-client
 events 
