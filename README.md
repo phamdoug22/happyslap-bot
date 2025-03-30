@@ -1,31 +1,55 @@
 # HappySlap Stream Bot
 
-This is a standalone TypeScript bot for HappySlap.tv that:
-- Fetches available games
-- Selects one at random
-- Hosts the game via WebSocket
-- Can send join info to Streamer.bot or other systems
+A Python bot for HappySlap.tv that:
+
+- Automatically logs into HappySlap.tv
+- Fetches available trivia games
+- Selects and hosts random games
+- Manages game sessions via WebSocket
 
 ## Setup
 
-1. Clone the repo
-2. Run:
+1. Create a virtual environment:
 
 ```bash
-npm install
-cp .env.example .env
-# Fill out your API_BASE_URL and token in .env
+python -m venv venv
+source venv/bin/activate # On Windows: venv\Scripts\activate
 ```
 
-3. Start the bot:
+2. Activate the virtual environment:
+
+   - Windows:
+
+   ```bash
+   .venv\Scripts\activate
+   ```
+
+   - Mac/Linux:
+
+   ```bash
+   source .venv/bin/activate
+   ```
+
+3. Install required packages:
+
+```bash
+pip install -r requirements.txt
+```
+
+4. Create a `.env` file with your credentials:
+
+```bash
+EMAIL=your_email@example.com
+PASSWORD=your_password
+```
+
+5. Start the bot:
 
 ```bash
 npm start
 ```
 
-## Structure
+## Project Structure
 
-- `src/getGames.ts` — Fetches game list from API
-- `src/socket.ts` — Emits createParty to HappySlap server
-- `src/index.ts` — Main entry point
-- `.env` — Contains your API credentials and config
+- `src/bot.py` - Main bot implementation with browser automation and WebSocket handling
+- `src/config.py` - Configuration settings for login credentials
