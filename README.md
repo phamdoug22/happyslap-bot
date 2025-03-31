@@ -5,7 +5,6 @@ A Python bot for HappySlap.tv that:
 - Automatically logs into HappySlap.tv
 - Fetches available trivia games
 - Selects and hosts random games
-- Manages game sessions via WebSocket
 
 ## Setup
 
