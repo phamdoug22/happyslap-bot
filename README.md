@@ -51,5 +51,4 @@ python3 src/bot.py
 
 ## Project Structure
 
-- `src/bot.py` - Main bot implementation with browser automation and WebSocket handling
-- `src/config.py` - Configuration settings for login credentials
+- `src/bot.py` - Main bot implementation with browser automation
