@@ -46,7 +46,7 @@ PASSWORD=your_password
 5. Start the bot:
 
 ```bash
-npm start
+python3 src/bot.py
 ```
 
 ## Project Structure
