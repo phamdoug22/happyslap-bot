@@ -38,14 +38,14 @@ class HappySlapBot:
 
     def login(self):
         """Login to HappySlap"""
-        print("🔑 Attempting login...")
+        print("Attempting login...")
         self.page.goto("https://happyslap.tv/login")
         
         # Wait for login form to load
         self.page.wait_for_selector("input[placeholder='Username or Email']")
         
         # Fill login form
-        print(f"📧 Using email: {EMAIL}")
+        print(f"Using email: {EMAIL}")
         self.page.fill("input[placeholder='Username or Email']", EMAIL)
         self.page.fill("input[placeholder='Password']", PASSWORD)
         
@@ -54,13 +54,13 @@ class HappySlapBot:
         
         try:
             self.page.wait_for_url("https://happyslap.tv/host", timeout=5000)
-            print("✅ Login successful!")
+            print("Login successful!")
             
             # Get access token after login
             self.access_token = self.page.evaluate("localStorage.getItem('accessToken')")
             
         except Exception as e:
-            print("❌ Login failed!")
+            print("Login failed!")
             raise e
 
     def inject_countdown_overlay(self):
@@ -92,7 +92,7 @@ class HappySlapBot:
 
     def select_and_host_trivia_game(self):
         """Find and host a random trivia game using the UI"""
-        print("🎲 Finding a trivia game...")
+        print("Finding a trivia game...")
         
         # Navigate to discover page
         self.page.goto("https://happyslap.tv/host/discover")
@@ -100,9 +100,9 @@ class HappySlapBot:
         
         # Find and fill the search bar
         search_input = self.page.wait_for_selector('input[class*="font-roboto"][class*="rounded-lg"]')
-        print("🔍 Found search input, filling with 'Trivia'...")
+        print("Found search input, filling with 'Trivia'...")
         search_input.fill("Trivia")
-        print("🔍 Searching for Trivia games...")
+        print("Searching for Trivia games...")
         
         self.page.wait_for_timeout(1500)  # Wait for debounce
         
@@ -130,13 +130,13 @@ class HappySlapBot:
         join_code_index = url_parts.index('host') + 1
         if join_code_index < len(url_parts):
             self.current_join_code = url_parts[join_code_index]
-            print(f"🎫 Join Code: {self.current_join_code}")
+            print(f"Join Code: {self.current_join_code}")
         else:
             # Fallback to looking for code in the page
             join_code_element = self.page.query_selector('h1.text-hs-green.font-londrina')
             if join_code_element:
                 self.current_join_code = join_code_element.inner_text()
-                print(f"🎫 Join Code: {self.current_join_code}")
+                print(f"Join Code: {self.current_join_code}")
         
         # Inject overlay if needed
         self.inject_countdown_overlay()
@@ -144,20 +144,20 @@ class HappySlapBot:
         # Make sure player list is empty before starting lobby loop
         initial_player_count = len(self.page.query_selector_all('[class*="grid-cols-4"] > div'))
         if initial_player_count > 0:
-            print("⚠️ Waiting for player list to reset...")
+            print("Waiting for player list to reset...")
             while len(self.page.query_selector_all('[class*="grid-cols-4"] > div')) > 0:
                 time.sleep(0.5)
         
         # Reset lobby state
         lobby_start_time = time.time()
         player_joined = False
-        print("👥 Lobby ready - waiting for players...")
+        print("Lobby ready - waiting for players...")
         
         while True:
             # Check for game end
             restart_button = self.page.query_selector('text="Restart Game"')
             if restart_button:
-                print("🏆 Game ended - showing scores...")
+                print("Game ended - showing scores...")
                 # Countdown before finding new game
                 for i in range(20, 0, -1):
                     self.update_countdown(f'Finding new game in: {i}s')
@@ -167,7 +167,7 @@ class HappySlapBot:
             # Check empty lobby timeout
             player_count = len(self.page.query_selector_all('[class*="grid-cols-4"] > div'))
             if time.time() - lobby_start_time > 600 and player_count == 0:  # 10 minutes empty
-                print("⏰ Lobby timeout - no players for 10 minutes")
+                print("Lobby timeout - no players for 10 minutes")
                 # Countdown before finding new game
                 for i in range(10, 0, -1):
                     self.update_countdown(f'Empty lobby - Finding new game in: {i}s')
@@ -176,7 +176,7 @@ class HappySlapBot:
             
             # Handle player joining
             if player_count > 0 and not player_joined:
-                print(f"👥 First player joined! Starting countdown...")
+                print(f"First player joined! Starting countdown...")
                 player_joined = True
                 
                 # Countdown to game start
@@ -195,9 +195,9 @@ class HappySlapBot:
     def announce_game(self):
         if hasattr(self, 'current_join_code'):
             print(f"""
-📢 New game started!
-🎮 Join code: {self.current_join_code}
-💫 HappySlap.tv - The best place for party games!
+New game started!
+Join code: {self.current_join_code}
+HappySlap.tv - The best place for party games!
             """)
 
 if __name__ == "__main__":
