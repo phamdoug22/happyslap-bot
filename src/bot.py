@@ -1,14 +1,23 @@
 from playwright.sync_api import sync_playwright
 import time
 import random
-from config import EMAIL, PASSWORD
 from pathlib import Path
 import re
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
 
 class HappySlapBot:
     def __init__(self):
         self.browser = None
         self.page = None
+        self.email = os.getenv('EMAIL')
+        self.password = os.getenv('PASSWORD')
+        
+        if not self.email or not self.password:
+            raise ValueError("EMAIL and PASSWORD must be set in .env file")
         
     def start(self):
         playwright = sync_playwright().start()
@@ -45,9 +54,9 @@ class HappySlapBot:
         self.page.wait_for_selector("input[placeholder='Username or Email']")
         
         # Fill login form
-        print(f"Using email: {EMAIL}")
-        self.page.fill("input[placeholder='Username or Email']", EMAIL)
-        self.page.fill("input[placeholder='Password']", PASSWORD)
+        print(f"Using email: {self.email}")
+        self.page.fill("input[placeholder='Username or Email']", self.email)
+        self.page.fill("input[placeholder='Password']", self.password)
         
         # Click login button
         self.page.click("button:has-text('Login')")
@@ -55,10 +64,6 @@ class HappySlapBot:
         try:
             self.page.wait_for_url("https://happyslap.tv/host", timeout=5000)
             print("Login successful!")
-            
-            # Get access token after login
-            self.access_token = self.page.evaluate("localStorage.getItem('accessToken')")
-            
         except Exception as e:
             print("Login failed!")
             raise e
