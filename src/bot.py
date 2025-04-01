@@ -156,6 +156,7 @@ class HappySlapBot:
         # Reset lobby state
         lobby_start_time = time.time()
         player_joined = False
+        game_started = False
         print("Lobby ready - waiting for players...")
         
         while True:
@@ -168,7 +169,12 @@ class HappySlapBot:
                     self.update_countdown(f'Finding new game in: {i}s')
                     time.sleep(1)
                 return self.select_and_host_trivia_game()  # Start fresh game
-            
+
+            # If game has started, no more lobby logic needed
+            if game_started:
+                time.sleep(1)
+                continue
+
             # Check empty lobby timeout
             player_count = len(self.page.query_selector_all('[class*="grid-cols-4"] > div'))
             if time.time() - lobby_start_time > 600 and player_count == 0:  # 10 minutes empty
@@ -194,6 +200,7 @@ class HappySlapBot:
                 if play_button:
                     self.update_countdown('Game in progress...')
                     play_button.click()
+                    game_started = True
             
             time.sleep(1)
 
