@@ -5,6 +5,7 @@ from pathlib import Path
 import re
 from dotenv import load_dotenv
 import os
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
@@ -15,6 +16,8 @@ class HappySlapBot:
         self.page = None
         self.email = os.getenv('EMAIL')
         self.password = os.getenv('PASSWORD')
+        self.last_login_time = None
+        self.LOGIN_INTERVAL = timedelta(hours=8)
         
         if not self.email or not self.password:
             raise ValueError("EMAIL and PASSWORD must be set in .env file")
@@ -33,17 +36,28 @@ class HappySlapBot:
         
         self.page = self.browser.new_page()
         
-        # Login first
+        # Initial login
         self.login()
         
         while True:
             try:
+                # Check if we need to refresh login
+                if self.should_refresh_login():
+                    print("Session refresh needed - logging in again...")
+                    self.login()
+                
                 self.select_and_host_trivia_game()
                 self.announce_game()
                 time.sleep(60)
             except Exception as e:
                 print(f"Error: {e}")
                 time.sleep(5)
+
+    def should_refresh_login(self):
+        """Check if we need to refresh the login session"""
+        if not self.last_login_time:
+            return True
+        return datetime.now() - self.last_login_time >= self.LOGIN_INTERVAL
 
     def login(self):
         """Login to HappySlap"""
@@ -64,6 +78,7 @@ class HappySlapBot:
         try:
             self.page.wait_for_url("https://happyslap.tv/host", timeout=5000)
             print("Login successful!")
+            self.last_login_time = datetime.now()  # Update login timestamp
         except Exception as e:
             print("Login failed!")
             raise e
